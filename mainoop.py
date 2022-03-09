@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from tabulate import tabulate
 from functions import bot_functions
 
-#قم بتعديل الغاء المؤقت من قاعدة البيانات عند الانتهاء منه لتصبح تعديل الحالة الى غير فعال بدل ذلك
 
 load_dotenv()
 lock = threading.Lock()
