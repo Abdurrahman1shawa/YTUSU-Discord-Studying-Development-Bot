@@ -1,0 +1,4 @@
+mysql_connector == 2.2.9
+tabulate == 0.8.9
+discord == 1.0.1
+python-dotenv == 0.17.1
