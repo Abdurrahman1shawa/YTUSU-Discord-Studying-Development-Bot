@@ -3,6 +3,7 @@ import time
 import discord
 import mysql.connector
 import os, asyncio
+from db_functions import *
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from tabulate import tabulate
@@ -14,12 +15,10 @@ lock = threading.Lock()
 token = os.environ['token_dev']
 bot_id = os.environ['bot_dev_id']
 
-class bot(discord.Client):
+
+class Database():
 
     def __init__(self):
-
-        super().__init__()
-        print("bot/Client initiated")
         self.conn_dict = {"host": os.environ['database_host_heroku'],
                      "user": os.environ['database_user_heroku'],
                      "password": os.environ['database_password_heroku'],
@@ -28,7 +27,18 @@ class bot(discord.Client):
                      "get_warnings": True
                      }
         self.connection = mysql.connector.connect(**self.conn_dict)
-        print("connected to database")
+        print("Database Connection successfully established ")
+
+    def get_connection(self):
+        return self.connection
+
+class Bot(discord.Client):
+
+    def __init__(self, connection):
+
+        super().__init__()
+        self.connection = connection
+        print("Bot/Client successfully initiated")
 
     def init_checking_thread(self):
 
@@ -70,15 +80,14 @@ class bot(discord.Client):
 
                     if timer.timer_type == "study" or "work":
 
-                        timer.save_tm_to_user()
-                        timer.save_tm_to_server()
-                        timer.save_tm_to_user_servers()
+                        save_tm_to_user(timer, bot.get_cursor("for saving the timer to the user table"))
+                        save_tm_to_server(timer,  bot.get_cursor("for saving the timer to the user table"))
+                        save_tm_to_user_servers(timer, bot.get_cursor("for saving the timer to the user table"))
 
                     if timer.break_duration > 0 :
                         # check this squence carfully
                         break_timer = timer(timer.user, timer.server, timer.channel, "break", timer.break_duration, 0)
 
-                    # add fun. to change the status of the timers to 0
                     timers.ongoing_timers.remove(timer)
                     timer.deactivate_timer()
                     # take and give role
@@ -102,19 +111,16 @@ class bot(discord.Client):
         channel = self.get_channel(channel)
         await channel.send(f" <@{user_id}>Slow down! You're already have an ongoing timer :face_with_monocle:")
 
-
-class timers:
+class Timers:
 
     def __init__(self):
 
         self.ongoing_timers = []
 
-
-    def init_timers(self):
+    def init_timers(self, cursor):
 
         start = time.time()
         print("loading ongoing timers")
-        cursor = bot.get_cursor()
         cursor.execute("select * from timer")
         timers = cursor.fetchall()
 
@@ -122,7 +128,7 @@ class timers:
 
             if tim["status"]:
 
-                self.ongoing_timers.append(timer(
+                self.ongoing_timers.append(Timer(
                                    user_id = tim["user_id"],
                                    server_id = tim["server_id"],
                                    channel_id = tim["channel_id"],
@@ -136,7 +142,6 @@ class timers:
         end = time.time()
         print(f"{len(self.ongoing_timers)}","ongoing timers loaded successfully", f"{end-start}"+"s")
         cursor.close()
-
 
     def get_timer(self, user_id):
 
@@ -153,7 +158,6 @@ class timers:
         print("ongoing timer not found")
         return False
 
-
     def chcek_timer(self, user_id):
 
         print("checking for ongoing timer")
@@ -168,7 +172,6 @@ class timers:
         print("ongoing timer not found")
         return False
 
-
     async def remaining_time(self, user_id, channel):
 
         timer = timers.get_timer(user_id)
@@ -182,10 +185,9 @@ class timers:
         else:
             await channel.send("You have to create a timer before doing that :upside_down:")
 
-
     async def stop(self, user_id, channel, save = True):
 
-        channel = bot.get_channel(channel)
+        #channel = bot.get_channel(channel)
 
         if not timers.chcek_timer(user_id) :
 
@@ -193,7 +195,6 @@ class timers:
             return
 
         timer = timers.get_timer(user_id)
-        print
 
         if timer.timer_type == "break": # don't save any break timers
 
@@ -204,9 +205,9 @@ class timers:
             duration = timer.duration
             elapsedtime = duration - timer.calculate_remaining_timer()
             timer.status = False
-            timer.save_tm_to_user(elapsedtime) # edit the save function to be efficent to work with stop method
-            timer.save_tm_to_user_servers(elapsedtime)
-            timer.save_tm_to_server(elapsedtime)
+            save_tm_to_user(timer, cursor, elapsedtime) # edit the save function to be efficent to work with stop method
+            save_tm_to_user_servers(timer, elapsedtime)
+            save_tm_to_server(timer, elapsedtime)
 
             await channel.send(
                 "<@{}>  {} timer canceled and {} minutes saved! I hope you have a good reason for this :new_moon_with_face:".format(
@@ -223,8 +224,7 @@ class timers:
         timers.ongoing_timers.remove(timer)
         #timer.drop_tm_from_tms()
 
-
-class timer(timers):
+class Timer(Timers):
 
     def __init__(self, user_id, server_id, channel_id, timer_type, duration, break_duration, end_date = None, status = False, id = None):
 
@@ -239,14 +239,13 @@ class timer(timers):
             self.status = status
             print("a new timer initiated")
 
-
     async def start(self):
 
         print("starting timer")
         self.end_date = timedelta(seconds = self.duration) + datetime.utcnow()
         self.status = True
         channel = bot.get_channel(self.channel)
-        self.save_tm_to_timer()
+        save_tm_to_timer(self, bot.get_cursor("saving the timer into timer table"))
 
         if self.id is None:
             cursor = bot.get_cursor("setting the timer id")
@@ -262,30 +261,30 @@ class timer(timers):
         print("timer started")
 
 
-    def save_tm_to_timer(self):
-
-        cursor = bot.get_cursor("for: saving the timer to database")
-        cursor.execute("""insert into timer
-        (user_id, server_id, channel_id, end_date, duration, break_duration, timer_type, status)
-        values ("{}","{}","{}","{}","{}","{}","{}",{});
-        """.format(self.user,
-                   self.server,
-                   self.channel,
-                   self.end_date,
-                   self.duration,
-                   self.break_duration,
-                   self.timer_type,
-                   self.status))
-        cursor.close()
-        print("the timer saved to database")
-
-    def drop_tm_from_tms(self):
-
-        cursor = bot.get_cursor("for droping the timer from database")
-        cursor.execute(f"""delete from timer
-        where user_id = {self.user} and server_id = {self.server} and duration = {self.duration}""")
-        print("timer droped from database")
-        cursor.close()
+    # def save_tm_to_timer(self):
+    #
+    #     cursor = bot.get_cursor("for: saving the timer to database")
+    #     cursor.execute("""insert into timer
+    #     (user_id, server_id, channel_id, end_date, duration, break_duration, timer_type, status)
+    #     values ("{}","{}","{}","{}","{}","{}","{}",{});
+    #     """.format(self.user,
+    #                self.server,
+    #                self.channel,
+    #                self.end_date,
+    #                self.duration,
+    #                self.break_duration,
+    #                self.timer_type,
+    #                self.status))
+    #     cursor.close()
+    #     print("the timer saved to database")
+    #
+    # def drop_tm_from_tms(self):
+    #
+    #     cursor = bot.get_cursor("for droping the timer from database")
+    #     cursor.execute(f"""delete from timer
+    #     where user_id = {self.user} and server_id = {self.server} and duration = {self.duration}""")
+    #     print("timer droped from database")
+    #     cursor.close()
 
     def calculate_remaining_timer(self):
 
@@ -295,120 +294,120 @@ class timer(timers):
         print(f"remaining time = {elapsedtime}" )
         return elapsedtime
 
-    def save_tm_to_user(self, custom_time = 0):
+    # def save_tm_to_user(self, custom_time = 0):
+    #
+    #     cursor = bot.get_cursor("for saving the time into user table")
+    #     duration = self.duration
+    #
+    #     if custom_time > 0:
+    #
+    #         duration = custom_time
+    #
+    #     if self.timer_type == "study":
+    #
+    #         cursor.execute(f"""insert into user
+    #         (id, total_studied_time, total_worked_time)
+    #         values ({self.user}, {duration}, 0)
+    #         on duplicate key update
+    #         total_studied_time = total_studied_time + {duration}""")
+    #
+    #
+    #     elif self.timer_type == "work":
+    #
+    #         cursor.execute(f"""insert into user
+    #         (id, total_studied_time, total_worked_time)
+    #         values ({self.user}, 0,{duration})
+    #         on duplicate key update
+    #         total_worked_time = total_worked_time + {duration}""")
+    #
+    #
+    #     cursor.close()
 
-        cursor = bot.get_cursor("for saving the time into user table")
-        duration = self.duration
+    # def save_tm_to_server(self, custom_time = 0):
+    #
+    #     cursor = bot.get_cursor("for saving the time into server table")
+    #     duration = self.duration
+    #
+    #     if custom_time > 0:
+    #
+    #         duration = custom_time
+    #
+    #     if self.timer_type == "study":
+    #
+    #         cursor.execute(f"""update servers set
+    #         total_studied_time = total_studied_time + {duration}
+    #         where id = {self.server}""")
+    #
+    #
+    #
+    #     elif self.timer_type == "work":
+    #
+    #         cursor.execute(f"""update servers set
+    #         total_worked_time = total_worked_time + {duration}
+    #         where id = {self.server}""")
+    #
+    #     cursor.close()
 
-        if custom_time > 0:
-
-            duration = custom_time
-
-        if self.timer_type == "study":
-
-            cursor.execute(f"""insert into user
-            (id, total_studied_time, total_worked_time)
-            values ({self.user}, {duration}, 0)
-            on duplicate key update
-            total_studied_time = total_studied_time + {duration}""")
-
-
-        elif self.timer_type == "work":
-
-            cursor.execute(f"""insert into user
-            (id, total_studied_time, total_worked_time)
-            values ({self.user}, 0,{duration})
-            on duplicate key update
-            total_worked_time = total_worked_time + {duration}""")
-
-
-        cursor.close()
-
-    def save_tm_to_server(self, custom_time = 0):
-
-        cursor = bot.get_cursor("for saving the time into server table")
-        duration = self.duration
-
-        if custom_time > 0:
-
-            duration = custom_time
-
-        if self.timer_type == "study":
-
-            cursor.execute(f"""update servers set
-            total_studied_time = total_studied_time + {duration}
-            where id = {self.server}""")
-
-
-
-        elif self.timer_type == "work":
-
-            cursor.execute(f"""update servers set
-            total_worked_time = total_worked_time + {duration}
-            where id = {self.server}""")
-
-        cursor.close()
-
-    def save_tm_to_user_servers(self, custom_time = 0):
-
-        cursor = bot.get_cursor("for saving the time into user_servers table")
-        cursor.execute(f"""
-        select user_id, server_id from user_servers
-        where user_id = {self.user} AND server_id = {self.server}
-        """)
-        result = len(cursor.fetchall())
-        duration = self.duration
-
-        if custom_time > 0:
-
-            duration = custom_time
-
-        if self.timer_type == "study":
-
-            if result == 0:
-
-                cursor.execute(f"""
-                insert into user_servers (server_id, user_id, server_studied_time,
-                server_worked_time, goal)
-                values ({self.server}, {self.user}, {duration}, 0, 0)
-                """)
-
-            else:
-
-                cursor.execute(f"""
-                update user_servers set
-                server_studied_time = server_studied_time + {duration}
-                where server_id = {self.server} AND user_id = {self.user}
-
-                """)
-
-        elif self.timer_type == "work":
-
-            if result == 0:
-
-                cursor.execute(f"""
-                insert into user_servers (server_id, user_id, server_studied_time,
-                server_worked_time, goal)
-                values ({self.server}, {self.user}, {0}, {duration}, 0)
-
-                """)
-
-            else:
-
-                cursor.execute(f"""
-                update user_servers set
-                server_worked_time = server_worked_time + {duration}
-                where user_id = {self.user} AND server_id = {self.server}
-                """)
-
-        cursor.close()
+    # def save_tm_to_user_servers(self, custom_time = 0):
+    #
+    #     cursor = bot.get_cursor("for saving the time into user_servers table")
+    #     cursor.execute(f"""
+    #     select user_id, server_id from user_servers
+    #     where user_id = {self.user} AND server_id = {self.server}
+    #     """)
+    #     result = len(cursor.fetchall())
+    #     duration = self.duration
+    #
+    #     if custom_time > 0:
+    #
+    #         duration = custom_time
+    #
+    #     if self.timer_type == "study":
+    #
+    #         if result == 0:
+    #
+    #             cursor.execute(f"""
+    #             insert into user_servers (server_id, user_id, server_studied_time,
+    #             server_worked_time, goal)
+    #             values ({self.server}, {self.user}, {duration}, 0, 0)
+    #             """)
+    #
+    #         else:
+    #
+    #             cursor.execute(f"""
+    #             update user_servers set
+    #             server_studied_time = server_studied_time + {duration}
+    #             where server_id = {self.server} AND user_id = {self.user}
+    #
+    #             """)
+    #
+    #     elif self.timer_type == "work":
+    #
+    #         if result == 0:
+    #
+    #             cursor.execute(f"""
+    #             insert into user_servers (server_id, user_id, server_studied_time,
+    #             server_worked_time, goal)
+    #             values ({self.server}, {self.user}, {0}, {duration}, 0)
+    #
+    #             """)
+    #
+    #         else:
+    #
+    #             cursor.execute(f"""
+    #             update user_servers set
+    #             server_worked_time = server_worked_time + {duration}
+    #             where user_id = {self.user} AND server_id = {self.server}
+    #             """)
+    #
+    #     cursor.close()
 
     def deactivate_timer(self):
 
         cursor = bot.get_cursor("disabling timer")
         cursor.execute(f"update timer set status = 0 where id = {self.id}")
 
-class server:
+class Server:
 
     def __init__(self, server_id, prefix = "&", role_settings = False,
                 auto_reset = False, next_reset = None, reset_period = None,
@@ -424,31 +423,23 @@ class server:
         self.total_studied_time = total_studied_time
         self.total_worked_time = total_worked_time
 
-
-    def save_to_db(self):
-
-        cursor = bot.get_cursor()
-
-        cursor.execute("""insert ignore into servers values ( {}, "{}", 0, 0, Null, Null, Null, Null, Null, 100, 500, 1000, 1500)
-
-        """.format(self.id, "&"))
-        cursor.close()
-
-
-
-class servers:
+class Servers:
 
     def __init__(self):
+        self.servers_list = []
 
         print("getting servers' settings")
-        self.servers_list = []
-        cursor = bot.get_cursor()
+
+
+
+    def init_servers(self, cursor): # get the servers' settings from DB
+
         cursor.execute("select * from servers")
         result = cursor.fetchall()
 
         for server_ in result:
 
-            self.servers_list.append(server(server_["id"],
+            self.servers_list.append(Server(server_["id"],
                                             server_["prefix"],
                                             server_["sw_roles_settings"],
                                             server_["auto_reset"],
@@ -477,21 +468,21 @@ class servers:
 
                 return True
 
-        ser = server(server_id, "&") # error local variable 'server' referenced before assignment
-        ser.save_to_db()
+        ser = Server(server_id, "&") # error local variable 'server' referenced before assignment
+        save_server_to_server(ser, bot.get_cursor())
         self.servers_list.append(ser)
 
-
-
-class user:
+class User:
 
     def __init__(self):
         pass
 
-bot = bot()
-servers = servers()
-timers = timers()
-timers.init_timers()
+database = Database()
+bot = Bot(database.get_connection()) # the name of the object must be "bot" or the other objects will fail
+servers = Servers()
+servers.init_servers(bot.get_cursor())
+timers = Timers()
+timers.init_timers(bot.get_cursor())
 bot.init_checking_thread()
 
 @bot.event
@@ -551,7 +542,7 @@ async def on_message(message):
 
             if not timers.chcek_timer(mai):
 
-                study_timer = timer(mai, msi, mci, "study", 25, 0)
+                study_timer = Timer(mai, msi, mci, "study", 25, 0)
                 await study_timer.start()
 
             else:
@@ -562,7 +553,7 @@ async def on_message(message):
 
             if 10 <= int(command[1]) <= 120:
 
-                study_timer = timer(mai, msi, mci, "study", int(command[1]), 0)
+                study_timer = Timer(mai, msi, mci, "study", int(command[1]), 0)
                 await study_timer.start()
 
             else:
@@ -575,7 +566,7 @@ async def on_message(message):
 
         elif len(command) == 1 and command[0].lower() == "cancel":
 
-            await timers.stop(mai, mci)
+            await timers.stop(mai, bot.get_channel(channelmci))
 
         elif len(command) == 2 and command[0].lower() == "cancel" & command[1].lower() == "clear" :
 
@@ -594,9 +585,9 @@ async def on_message(message):
                 user = command[1][2:20]
 
             timer = timer(user, msi, mci, "study", 10, 0)
-            timer.save_tm_to_user()
-            timer.save_tm_to_server()
-            timer.save_tm_to_user_servers()
+            save_tm_to_user(timer, bot.get_cursor())
+            save_tm_to_server(timer, bot.get_cursor())
+            save_tm_to_user_servers(timer, bot.get_cursor())
 
         elif command[0].lower() == "shistory" and len(command) == 4 :
 
