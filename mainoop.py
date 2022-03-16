@@ -74,9 +74,10 @@ async def on_ready():
 
 @bot.event
 async def on_guild_join(guild):
-
-    pass # add auto default settings adding
-
+    
+    new_server = Server(guild.id)
+    save_server_to_server(new_server) # add auto default settings adding
+    servers.add_server(new_server)
 
 @bot.event
 async def on_message(message):
