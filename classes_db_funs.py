@@ -204,6 +204,9 @@ class Servers:
         save_server_to_server(ser, bot.get_cursor())
         self.servers_list.append(ser)
 
+    def add_server(self, server_obj):
+        self.servers_list.append(server_obj)
+
 class Server:
 
     def __init__(self, server_id, prefix = "&", role_settings = False,
