@@ -55,7 +55,7 @@ def checking_thread():
 
                 timers.ongoing_timers.remove(timer)
                 deactivate_timer(timer)
-                # take and give role
+                # take and give role with excpect
 
 bot = Bot() # the name of the object must be "bot" or the other objects will fail
 servers = Servers()
@@ -74,7 +74,7 @@ async def on_ready():
 
 @bot.event
 async def on_guild_join(guild):
-    
+
     new_server = Server(guild.id)
     save_server_to_server(new_server) # add auto default settings adding
     servers.add_server(new_server)
@@ -131,11 +131,11 @@ async def on_message(message):
 
             await timers.stop(mai, message.channel)
 
-        elif len(command) == 2 and command[0].lower() == "cancel" & command[1].lower() == "clear" :
+        elif len(command) == 2 and command[0].lower() == "cancel" and command[1].lower() == "clear" :
 
             await timers.stop(mai, message.channel, save = False)
 
-        elif command[0].lower() == "give" and len(command) == 4 and (command[3] == "study" or command[3] == "work"):
+        elif len(command) == 4 and  command[0].lower() == "give" and (command[3] == "study" or command[3] == "work"):
 
             user = int()
 
@@ -152,10 +152,18 @@ async def on_message(message):
             save_tm_to_server(timer)
             save_tm_to_user_servers(timer)
 
-        elif command[0].lower() == "shistory" and len(command) == 4 :
+        elif len(command) == 1 and command[0].lower() == "shistory"  :
 
             pass
             #add history fun to external file
+
+        elif len(command) == 1 and command[0].lower() == "help"  :
+
+            await bot.help(server, message.channel)
+
+        elif len(command) == 2 and command[0].lower() == "help" and command[1].lower() == "admin":
+
+            await bot.help(server, message.channel, True)
 
         else:
             await message.channel.send("invalid command")
