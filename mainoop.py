@@ -152,10 +152,16 @@ async def on_message(message):
             save_tm_to_server(timer)
             save_tm_to_user_servers(timer)
 
+        elif len(command) == 1 and command[0].lower() == "top"  :
+
+            await bot.top_periodicly(server, message.channel)
+
         elif len(command) == 1 and command[0].lower() == "shistory"  :
 
             pass
             #add history fun to external file
+
+
 
         elif len(command) == 1 and command[0].lower() == "help"  :
 
