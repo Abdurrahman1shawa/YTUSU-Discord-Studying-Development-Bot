@@ -43,6 +43,33 @@ class Bot(discord.Client):
         channel = self.get_channel(channel)
         await channel.send(f" <@{user_id}>Slow down! You're already have an ongoing timer :face_with_monocle:")
 
+    async def top_periodicly(self, server, channel):
+
+        cursor = self.get_cursor()
+        cursor.execute(f"""
+        select user_id from timer where server_id = {server.id}
+        """)
+        guild = await self.fetch_guild(server.id)
+        print()
+        the_most_productive_people = []
+        users = cursor.fetchall()
+        number = 0
+        for user in users:
+
+            number += 1
+            cursor.execute(f"""
+            select sum(duration) from timer where user_id = {user["user_id"]}
+            """)
+            productive_time = cursor.fetchone()["sum(duration)"]
+            the_most_productive_people.append([number, (await guild.fetch_member(user["user_id"])).nick, productive_time])
+
+        final_table = "And here are our top productive people!!\n```\n{}\n```".format(
+            str(tabulate(the_most_productive_people, headers = ["#", "Name", "Productive Time"], numalign = "right")))
+
+        embed = discord.Embed(title = "leaderboard", description = final_table)
+
+        await channel.send(embed = embed)
+
     async def help(self, server, channel, admin = False):
 
         if admin:
