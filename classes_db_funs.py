@@ -114,7 +114,47 @@ class Timers:
         self.ongoing_timers.remove(timer)
         deactivate_timer(timer)
 
-class Timer(Timers):
+    @classmethod
+    async def finish(cls, timer_obj, channel):
+
+                print("finishing timer")
+
+                if timer_obj.timer_type == "break_duration" :
+
+                    await channel.send(f"<@{timer_obj.user}> Your break is over! Don't let the cycle stop rolling :person_running:")
+
+                else:
+
+                    if timer_obj.break_duration > 0 :
+
+                        await channel.send(
+                        f"<@{timer_obj.user}> Your {timer_obj.timer_type} timer is over!\nHave a {timer_obj.break_duration} minutes break, champion :fist:")
+
+                    else:
+
+                        await channel.send(f"<@{timer_obj.user}> Your {timer_obj.timer_type} timer is over! Well done :clap:")
+
+
+                if timer_obj.timer_type == "study" or "work":
+
+                    save_tm_to_user(timer_obj)
+                    save_tm_to_server(timer_obj)
+                    save_tm_to_user_servers(timer_obj)
+
+                    if timer_obj.break_duration > 0 :
+                        # check this squence carfully
+                        break_timer = Timer(timer_obj.user, timer_obj.server, timer_obj.channel, "break", timer_obj.break_duration, 0)
+                        await break_timer.start(bot)
+
+                else:
+                    #drop break timer
+                    drop_tm_from_tms(timer_obj)
+
+                cls.ongoing_timers.remove(timer_obj)
+                deactivate_timer(timer_obj)
+
+
+class Timer:
 
     def __init__(self, user_id, server_id, channel_id, timer_type, duration, break_duration, end_date = None, status = False, id = None):
 
@@ -274,7 +314,7 @@ def save_tm_to_server(timer_obj, custom_time = 0):
 
 
 
-    elif timer_objtimer_type == "work":
+    elif timer_obj.timer_type == "work":
 
         cursor.execute(f"""update servers set
         total_worked_time = total_worked_time + {duration}
@@ -371,4 +411,8 @@ def drop_tm_from_tms(timer_obj):
 
 def deactivate_timer(timer_obj ):
     cursor = Bot.get_cursor()
-    cursor.execute(f"update timer set status = 0 where id = {timer_obj.id}")
+    cursor.execute(f"update timer set status = {0} where id = {timer_obj.id}")
+
+def clear_tm(server):
+    cursor = Bot.get_cursor()
+    cursor.execute(f"delete from timer where status = {0} and server_id = {server.id}")
