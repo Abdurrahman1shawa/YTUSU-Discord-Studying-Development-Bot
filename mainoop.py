@@ -19,16 +19,16 @@ def checking_thread():
         time.sleep(1)
 
         for timer in Timers.ongoing_timers:
-            print(timer.end_date, type(timer.end_date))
+            print(timer.end_date)
 
-            if datetime.utcnow() > timer.end_date and timer.server in [guild.id for guild in bot.guilds] :
-                print(datetime.utcnow(), timer.end_date)
+            if datetime.utcnow() > timer.end_date and timer.server in [guild.id for guild in bot.guilds] and timer.status :
+
+                print("finishing timer")
 
                 channel = bot.get_channel(timer.channel)
 
                 if timer.timer_type == "break_duration" :
 
-                    #async function need to be awaited
                     bot.loop.create_task(channel.send(f"<@{timer.user}> Your break is over! Don't let the cycle stop rolling :person_running:"))
 
                 else:
@@ -49,9 +49,14 @@ def checking_thread():
                     save_tm_to_server(timer)
                     save_tm_to_user_servers(timer)
 
-                if timer.break_duration > 0 :
-                    # check this squence carfully
-                    break_timer = timer(timer.user, timer.server, timer.channel, "break", timer.break_duration, 0)
+                    if timer.break_duration > 0 :
+                        # check this squence carfully
+                        break_timer = Timer(timer.user, timer.server, timer.channel, "break", timer.break_duration, 0)
+                        bot.loop.create_task(break_timer.start(bot))
+
+                else:
+                    #drop break timer
+                    drop_tm_from_tms(timer)
 
                 timers.ongoing_timers.remove(timer)
                 deactivate_timer(timer)
@@ -116,8 +121,80 @@ async def on_message(message):
 
             if 10 <= int(command[1]) <= 120:
 
-                study_timer = Timer(mai, msi, mci, "study", int(command[1]), 0)
-                await study_timer.start()
+                if not timers.chcek_timer(mai):
+
+                    study_timer = Timer(mai, msi, mci, "study", int(command[1]), 0)
+                    await study_timer.start(bot)
+
+                else:
+                    await bot.ongoing_timer(mai, mci)
+
+            else:
+
+                await message.channel.send("Your specified time duration is out of range! :eyes:")
+
+
+        elif len(command) == 4 and command[0].lower() == "study" and type(int(
+                command[1])) is int and command[2].lower() == "break" and type(int(
+                command[3])) is int:
+
+            if 10 <= int(command[1]) <= 120 and 5 <= int(command[3]) <= 30:
+
+                if not timers.chcek_timer(mai):
+
+                    study_timer = Timer(mai, msi, mci, "study", int(command[1]), int(command[3]))
+                    await study_timer.start(bot)
+
+                else:
+                    await bot.ongoing_timer(mai, mci)
+
+            else:
+
+                await message.channel.send("Your specified time duration is out of range! :eyes:")
+
+
+        elif len(command) == 1 and command[0].lower() == "work":
+
+            if not timers.chcek_timer(mai):
+
+                study_timer = Timer(mai, msi, mci, "work", 25, 0)
+                await study_timer.start(bot)
+
+            else:
+                await bot.ongoing_timer(mai, mci)
+
+
+        elif len(command) == 2 and command[0].lower() == "work" and type(int(
+                command[1])) is int:
+
+            if 10 <= int(command[1]) <= 120:
+
+                if not timers.chcek_timer(mai):
+
+                    study_timer = Timer(mai, msi, mci, "work", int(command[1]), 0)
+                    await study_timer.start(bot)
+
+                else:
+                    await bot.ongoing_timer(mai, mci)
+
+            else:
+
+                await message.channel.send("Your specified time duration is out of range! :eyes:")
+
+
+        elif len(command) == 4 and command[0].lower() == "work" and type(int(
+                command[1])) is int and command[2].lower() == "break" and type(int(
+                command[3])) is int:
+
+            if 10 <= int(command[1]) <= 120 and 5 <= int(command[3]) <= 30:
+
+                if not timers.chcek_timer(mai):
+
+                    study_timer = Timer(mai, msi, mci, "work", int(command[1]), int(command[3]))
+                    await study_timer.start(bot)
+
+                else:
+                    await bot.ongoing_timer(mai, mci)
 
             else:
 
@@ -161,8 +238,6 @@ async def on_message(message):
             pass
             #add history fun to external file
 
-
-
         elif len(command) == 1 and command[0].lower() == "help"  :
 
             await bot.help(server, message.channel)
@@ -170,6 +245,10 @@ async def on_message(message):
         elif len(command) == 2 and command[0].lower() == "help" and command[1].lower() == "admin":
 
             await bot.help(server, message.channel, True)
+
+        elif len(command) == 1 and command[0].lower() == "clearrecords":
+
+            clear_tm(server)
 
         else:
             await message.channel.send("invalid command")
