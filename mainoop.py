@@ -228,13 +228,15 @@ async def on_message(message):
 
 
             if type(user) != None:
-                print("giving")
+                
+                print(f"giving {command[2]} {command[3]} to {id}")
                 timer = Timer(id, msi, mci, command[3], command[2], 0)
                 timer.end_date = datetime.utcnow()
                 save_tm_to_timer(timer)
                 save_tm_to_user(timer)
                 save_tm_to_server(timer)
                 save_tm_to_user_servers(timer)
+                await message.channel.send(f"{command[2]} {command[3]} minutes given to <@{id}>")
 
         elif len(command) == 1 and command[0].lower() == "top"  :
 
