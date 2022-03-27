@@ -214,20 +214,27 @@ async def on_message(message):
 
         elif len(command) == 4 and  command[0].lower() == "give" and (command[3] == "study" or command[3] == "work"):
 
-            user = int()
+            user = None
 
             if len(command[1]) == 22:
 
-                user = command[1][3:21]
+                id = command[1][3:21]
+                user = bot.get_user(id)
 
             else:
 
-                user = command[1][2:20]
+                id = command[1][2:20]
+                user = bot.get_user(id)
 
-            timer = Timer(user, msi, mci, "study", 10, 0)
-            save_tm_to_user(timer)
-            save_tm_to_server(timer)
-            save_tm_to_user_servers(timer)
+
+            if type(user) != None:
+                print("giving")
+                timer = Timer(id, msi, mci, command[3], command[2], 0)
+                timer.end_date = datetime.utcnow()
+                save_tm_to_timer(timer)
+                save_tm_to_user(timer)
+                save_tm_to_server(timer)
+                save_tm_to_user_servers(timer)
 
         elif len(command) == 1 and command[0].lower() == "top"  :
 
