@@ -1,9 +1,9 @@
 import threading
 from classes_db_funs import *
-from Bot import *
 from extra_funs import validate_message
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+
 
 load_dotenv()
 lock = threading.Lock()
@@ -214,29 +214,9 @@ async def on_message(message):
 
         elif len(command) == 4 and  command[0].lower() == "give" and (command[3] == "study" or command[3] == "work"):
 
-            user = None
+            id = await bot.give(msi, message.channel, command[1], command[2], command[3])
 
-            if len(command[1]) == 22:
-
-                id = command[1][3:21]
-                user = bot.get_user(id)
-
-            else:
-
-                id = command[1][2:20]
-                user = bot.get_user(id)
-
-
-            if type(user) != None:
-                
-                print(f"giving {command[2]} {command[3]} to {id}")
-                timer = Timer(id, msi, mci, command[3], command[2], 0)
-                timer.end_date = datetime.utcnow()
-                save_tm_to_timer(timer)
-                save_tm_to_user(timer)
-                save_tm_to_server(timer)
-                save_tm_to_user_servers(timer)
-                await message.channel.send(f"{command[2]} {command[3]} minutes given to <@{id}>")
+            await message.channel.send(f"{command[2]} {command[3]} minutes given to <@{id}>")
 
         elif len(command) == 1 and command[0].lower() == "top"  :
 
