@@ -47,20 +47,22 @@ class Bot(discord.Client):
 
         cursor = self.get_cursor()
         cursor.execute(f"""
-        select user_id from timer where server_id = {server.id}
+        select distinct user_id from timer where server_id = {server.id}
         """)
         guild = await self.fetch_guild(server.id)
         print()
         the_most_productive_people = []
         users = cursor.fetchall()
+        print(users)
         number = 0
         for user in users:
 
             number += 1
             cursor.execute(f"""
-            select sum(duration) from timer where user_id = {user["user_id"]}
+            select sum(duration) from timer where user_id = {user["user_id"]} and server_id = {server.id}
             """)
             productive_time = cursor.fetchone()["sum(duration)"]
+            print(productive_time)
             the_most_productive_people.append([number, (await guild.fetch_member(user["user_id"])).nick, productive_time])
 
         final_table = "And here are our top productive people!!\n```\n{}\n```".format(
