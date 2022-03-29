@@ -169,7 +169,35 @@ class Bot(discord.Client):
 
         return id
 
+    async def productivity(self, server_id, user_id):
 
+        cursor = Bot.get_cursor()
+        cursor.execute(f"""select sum(server_studied_time + server_worked_time) from user_servers
+        where user_id = {user_id} and server_id = {server_id}""")
+        score = cursor.fetchone()["sum(server_studied_time + server_worked_time)"]
+
+        return score
+
+    async def my_recoreds(self, server_id, user_id):
+
+        cursor = Bot.get_cursor()
+        cursor.execute(f"""select timer_type, duration, end_date from timer
+        where user_id = {user_id} and server_id = {server_id} order by end_date""")
+        timers = cursor.fetchall()
+        recoreds = []
+
+        for timer in timers:
+            print(timer)
+            recoreds.append([timer["timer_type"], timer["duration"], timer["end_date"] + timedelta(hours = 3)])
+
+
+        final_recoreds = "and here is your invaluble study records \n```\n{}\n```".format(
+        tabulate(recoreds, headers = ["Type", "Duration", "Date"], numalign = "right" )
+        )
+
+        embed = discord.Embed(title = "recoreds", description = final_recoreds)
+
+        return embed
 
 class Timers:
 

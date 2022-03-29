@@ -218,14 +218,21 @@ async def on_message(message):
 
             await message.channel.send(f"{command[2]} {command[3]} minutes given to <@{id}>")
 
-        elif len(command) == 1 and command[0].lower() == "top"  :
+        elif len(command) == 1 and command[0].lower() == "top" :
 
             await bot.top_periodicly(server, message.channel)
 
-        elif len(command) == 1 and command[0].lower() == "shistory"  :
+        elif len(command) == 1 and command[0].lower() == "productivity" :
 
-            pass
-            #add history fun to external file
+            score = await bot.productivity(msi, mai)
+
+            await message.channel.send(f"wow you have {score} min of productive time you are super hero")
+
+        elif len(command) == 2 and command[0].lower() == "my" and command[1].lower() == "recoreds" :
+
+            recoreds = await bot.my_recoreds(msi, mai)
+
+            await message.channel.send(embed = recoreds)
 
         elif len(command) == 1 and command[0].lower() == "help"  :
 
